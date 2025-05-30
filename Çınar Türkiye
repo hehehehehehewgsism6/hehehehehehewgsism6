@@ -1,0 +1,652 @@
+import random
+import time
+import sys
+import os
+
+# ANSI renk kodları
+class Colors:
+    RESET = "\033[0m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    MAGENTA = "\033[95m"
+    CYAN = "\033[96m"
+    WHITE = "\033[97m"
+    BG_BLACK = "\033[40m"
+    BG_RED = "\033[41m"
+    BG_GREEN = "\033[42m"
+    BG_YELLOW = "\033[43m"
+    BRIGHT_BLACK = "\033[90m"
+    BRIGHT_WHITE = "\033[97m"
+
+# --- Yardımcı Fonksiyonlar ---
+def clear_screen():
+    """Terminal ekranını temizler."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def print_slowly(text, delay=0.03):
+    """Metni yavaşça, harf harf yazdırır."""
+    for char in text:
+        sys.stdout.write(char)
+        sys.stdout.flush()
+        time.sleep(delay)
+    print()
+
+def display_can_bar(current_can, max_can):
+    """Kalan canı görsel bir bar şeklinde gösterir."""
+    bar = ""
+    for i in range(max_can):
+        if i < current_can:
+            bar += Colors.RED + "♥ " + Colors.RESET # Can var
+        else:
+            bar += Colors.WHITE + "♡ " + Colors.RESET # Can yok
+    print(f"Can: [{bar}] ({current_can}/{max_can})")
+
+def draw_frame(title, content_func, color=Colors.CYAN):
+    """Belirtilen içeriği bir çerçeve içine alarak gösterir."""
+    clear_screen()
+    width = 60
+    print(color + "╔" + "═" * (width - 2) + "╗" + Colors.RESET)
+    print(color + "║" + title.center(width - 2) + "║" + Colors.RESET)
+    print(color + "╠" + "═" * (width - 2) + "╣" + Colors.RESET)
+
+    # İçeriği fonksiyon çağırarak yazdır
+    content_func()
+
+    print(color + "╚" + "═" * (width - 2) + "╝" + Colors.RESET)
+    print(Colors.RESET) # Renk sıfırlama
+
+# --- Oyun İstatistikleri Fonksiyonları ---
+STATS_FILE = "bomba_oyunu_istatistikleri.txt"
+
+def load_stats():
+    """Kayıtlı istatistikleri dosyadan yükler."""
+    stats = {"wins": 0, "losses": 0}
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r") as f:
+                for line in f:
+                    if "Kazanılan:" in line:
+                        stats["wins"] = int(line.split(":")[1].strip())
+                    elif "Kaybedilen:" in line:
+                        stats["losses"] = int(line.split(":")[1].strip())
+        except Exception as e:
+            print(Colors.RED + f"İstatistikler yüklenirken bir hata oluştu: {e}" + Colors.RESET)
+    return stats
+
+def save_stats(stats):
+    """İstatistikleri dosyaya kaydeder."""
+    try:
+        with open(STATS_FILE, "w") as f:
+            f.write(f"Kazanılan: {stats['wins']}\n")
+            f.write(f"Kaybedilen: {stats['losses']}\n")
+    except Exception as e: # Bu kısım önceki hatada düzeltilmişti.
+        print(Colors.RED + f"İstatistikler kaydedilirken bir hata oluştu: {e}" + Colors.RESET)
+
+def show_stats_content(stats):
+    """İstatistik içeriğini çerçeve içine yazdırır."""
+    print(Colors.GREEN + f"Toplam Kazanılan Oyun: {stats['wins']}".ljust(58) + Colors.RESET)
+    print(Colors.RED + f"Toplam Kaybedilen Oyun: {stats['losses']}".ljust(58) + Colors.RESET)
+    total_games = stats['wins'] + stats['losses']
+    if total_games > 0:
+        kazanma_orani = (stats['wins'] / total_games) * 100
+        print(Colors.YELLOW + f"Kazanma Oranı: %{kazanma_orani:.2f}".ljust(58) + Colors.RESET)
+    else:
+        print(Colors.MAGENTA + "Henüz hiç oyun oynanmadı.".ljust(58) + Colors.RESET)
+    print(" " * 58) # Boşluk
+    input(Colors.BLUE + "Devam etmek için ENTER tuşuna bas...".ljust(58) + Colors.RESET)
+
+# --- Oyun Senaryoları ---
+def display_splash_screen():
+    """Oyunun açılış ekranını gösterir."""
+    clear_screen()
+    print(Colors.BG_BLACK + Colors.YELLOW + r"""
+                                         _  _       _
+                                        | || |     | |
+                                        | || |_   _| |__  _ __ ___   __ _ _ __
+                                        |__   _| / _` | '_ \| '_ ` _ \ / _` | '_ \
+                                           | |  | (_| | |_) | | | | | | (_| | | | |
+                                           |_|   \__,_|_.__|_| |_| |_|\__,_|_| |_|
+
+          ____                      _
+         |  _ \                    | |
+         | |_) | ___  _ __ ___   __| | ___ _ __
+         |  _ < / _ \| '_ ` _ \ / _` |/ _ \ '__|
+         | |_) | (_) | | | | | | (_| |  __/ |
+         |____/ \___|_| |_| |_| |_|\__,_|\___|_|
+            """ + Colors.RESET)
+
+    print_slowly(Colors.CYAN + "         Yükleniyor..." + Colors.RESET, delay=0.08)
+    time.sleep(0.5)
+    print_slowly(Colors.MAGENTA + "         Hazırlanıyor..." + Colors.RESET, delay=0.08)
+    time.sleep(0.5)
+    print_slowly(Colors.GREEN + "         Başlatılıyor..." + Colors.RESET, delay=0.08)
+    time.sleep(1) # Kısa bir duraklama
+    clear_screen()
+
+def oyun_karsilama_content():
+    """Ana menüdeki karşılama içeriğini yazdırır."""
+    print_slowly("        GELİŞTİRİLMİŞ BOMBA KAZANMA SİSTEMİNE HOŞ GELDİN! ", delay=0.04)
+    print_slowly("--------------------------------------------------")
+    print(" " * 58) # Boşluk
+    print(Colors.BRIGHT_BLACK + "        Hazır Ol, Zaman Daralıyor!" + Colors.RESET)
+
+
+def how_to_play_content():
+    """Nasıl oynanır içeriğini çerçeve içine yazdırır."""
+    print_slowly("Amacın belirlenen sayı aralığında bir sayı tahmin etmek.".ljust(58), delay=0.01)
+    print_slowly("Her yanlış tahminde bir can kaybedersin.".ljust(58), delay=0.01)
+    print_slowly("Doğru sayıyı bulursan KAZANIRSIN!".ljust(58), delay=0.01)
+    print_slowly("Canın biterse, BOMBA PATLAR ve KAYBEDERSİN!".ljust(58), delay=0.01)
+    print_slowly("Oyunda 3 zorluk seviyesi bulunur.".ljust(58), delay=0.01)
+    print_slowly("Her seviyenin farklı bir sayı aralığı ve can hakkı vardır.".ljust(58), delay=0.01)
+    print_slowly("Tahminlerine göre ipuçları alacaksın.".ljust(58), delay=0.01)
+    print(" " * 58) # Boşluk
+    input(Colors.BLUE + "Devam etmek için ENTER tuşuna bas...".ljust(58) + Colors.RESET)
+
+def zorluk_secimi():
+    """Kullanıcıdan zorluk seviyesi seçmesini ister ve aralığı döndürür."""
+    while True:
+        clear_screen() # Seçim ekranını temizle
+        print(Colors.BLUE + "\n--- Zorluk Seviyesi Seç ---" + Colors.RESET)
+        print("1. Kolay " + Colors.GREEN + "(1-20 arası, 5 can)" + Colors.RESET)
+        print("2. Orta " + Colors.YELLOW + "(1-50 arası, 4 can)" + Colors.RESET)
+        print("3. Zor " + Colors.RED + "(1-100 arası, 3 can)" + Colors.RESET)
+        secim = input(Colors.CYAN + "Seçimin (1/2/3): " + Colors.RESET)
+
+        if secim == '1':
+            return 1, 20, 5 # min, max, can
+        elif secim == '2':
+            return 1, 50, 4
+        elif secim == '3':
+            return 1, 100, 3
+        else:
+            print(Colors.RED + "Geçersiz seçim. Lütfen 1, 2 veya 3 girin." + Colors.RESET)
+            time.sleep(0.5)
+
+def bomba_patlama_animasyonu():
+    """Bomba patlama anını metinle canlandırır."""
+    sys.stdout.write(Colors.BG_RED + Colors.WHITE)
+    sys.stdout.flush()
+    print("\n     ███████████     ")
+    print("    █████████████    ")
+    print("   ███████████████   ")
+    print("   ███" + Colors.RED + "BOM" + Colors.WHITE + "BA" + Colors.RED + "PAT" + Colors.WHITE + "LADI" + Colors.RED + "DII" + Colors.WHITE + "███   ")
+    print("   ███████████████   ")
+    print("    █████████████    ")
+    print("     ███████████     ")
+    print("\n       💥 B O O M ! 💥       ")
+    time.sleep(1.5)
+    sys.stdout.write(Colors.BG_BLACK + Colors.RESET) # Arka planı siyaha döndür
+    sys.stdout.flush()
+
+def kazanma_animasyonu():
+    """Kazanma anını metinle canlandırır."""
+    sys.stdout.write(Colors.BG_GREEN + Colors.WHITE)
+    sys.stdout.flush()
+    print("\n     🎉 TEBRİKLER! 🎉     ")
+    print("    ✨ KAZANDINIZ! ✨    ")
+    print("     🏆 MÜKEMMEL! 🏆     ")
+    time.sleep(1.5)
+    sys.stdout.write(Colors.BG_BLACK + Colors.RESET) # Arka planı siyaha döndür
+    sys.stdout.flush()
+
+def get_hint(tahmin, gizli_sayi, max_range_param): # Parametre adı değiştirildi
+    """Tahmine göre daha detaylı ipucu verir."""
+    fark = abs(tahmin - gizli_sayi)
+
+    # max_range yerine max_range_param kullanıyoruz
+    if max_range_param <= 20: # Kolay seviye
+        if fark <= 2:
+            return Colors.RED + "İpucu: Çok Sıcak! Neredeyse buldun." + Colors.RESET
+        elif fark <= 5:
+            return Colors.YELLOW + "İpucu: Sıcak! Yaklaşıyorsun." + Colors.RESET
+        else:
+            return Colors.BLUE + "İpucu: Soğuk! Daha fazla dene." + Colors.RESET
+    elif max_range_param <= 50: # Orta seviye
+        if fark <= 5:
+            return Colors.RED + "İpucu: Çok Sıcak! Neredeyse buldun." + Colors.RESET
+        elif fark <= 10:
+            return Colors.YELLOW + "İpucu: Sıcak! Yaklaşıyorsun." + Colors.RESET
+        else:
+            return Colors.BLUE + "İpucu: Soğuk! Daha fazla dene." + Colors.RESET
+    else: # Zor seviye
+        if fark <= 10:
+            return Colors.RED + "İpucu: Çok Sıcak! Neredeyse buldun." + Colors.RESET
+        elif fark <= 20:
+            return Colors.YELLOW + "İpucu: Sıcak! Yaklaşıyorsun." + Colors.RESET
+        else:
+            return Colors.BLUE + "İpucu: Soğuk! Daha fazla dene." + Colors.RESET
+
+# --- Ana Oyun Döngüsü ---
+def play_game(stats):
+    """Tek bir oyunun akışını yönetir."""
+    clear_screen()
+    min_sayi, max_sayi, baslangic_can = zorluk_secimi()
+    gizli_sayi = random.randint(min_sayi, max_sayi)
+    can = baslangic_can
+    tahmin_hakki = 0
+
+    print(Colors.BLUE + f"\n{min_sayi} ile {max_sayi} arasında bir sayı tahmin et." + Colors.RESET)
+
+    while can > 0:
+        display_can_bar(can, baslangic_can) # Can barını göster
+        try:
+            tahmin_hakki += 1
+            tahmin = int(input(Colors.YELLOW + f"Tahminini gir: " + Colors.RESET))
+
+            if not (min_sayi <= tahmin <= max_sayi):
+                print(Colors.RED + f"Lütfen {min_sayi} ile {max_sayi} arasında bir sayı gir." + Colors.RESET)
+                time.sleep(0.5)
+                continue
+
+            if tahmin == gizli_sayi:
+                kazanma_animasyonu() # Kazanma animasyonu
+                print(Colors.GREEN + f"     {tahmin_hakki} tahminde doğru bildin! Gizli sayı {gizli_sayi} idi." + Colors.RESET)
+                stats["wins"] += 1
+                break
+            else:
+                can -= 1
+                print_slowly(Colors.MAGENTA + "Yanlış tahmin! Bomba tık tık ediyor..." + Colors.RESET, delay=0.05)
+                time.sleep(0.5) # Kısa bir duraklama
+                if can > 0:
+                    print(get_hint(tahmin, gizli_sayi, max_sayi)) # <-- Buradaki max_sayi düzeltildi!
+                    if tahmin < gizli_sayi:
+                        print(Colors.BLUE + "Sayı daha büyük." + Colors.RESET)
+                    else:
+                        print(Colors.BLUE + "Sayı daha küçük." + Colors.RESET)
+                else:
+                    bomba_patlama_animasyonu() # Patlama animasyonu
+                    print(Colors.RED + f"     Kaybettin! Gizli sayı {gizli_sayi} idi." + Colors.RESET)
+                    stats["losses"] += 1
+        except ValueError:
+            print(Colors.RED + "Geçersiz giriş! Lütfen bir sayı gir." + Colors.RESET)
+            time.sleep(0.5)
+        except Exception as e:
+            print(Colors.RED + f"Beklenmeyen bir hata oluştu: {e}" + Colors.RESET)
+            time.sleep(0.5)
+
+        # Bu input'un yeri değişti, artık her tahmin sonrası değil, can bittiğinde veya kazanıldığında gelecek.
+        # Böylece döngüde gereksiz duraklama olmaz.
+        if can <= 0 or tahmin == gizli_sayi: # Oyun bittiğinde
+            input(Colors.BLUE + "\nDevam etmek için ENTER tuşuna bas..." + Colors.RESET)
+            clear_screen()
+            save_stats(stats) # Oyun bitince istatistikleri kaydet
+
+
+# --- Ana Menü ---
+def main_menu():
+    """Oyunun ana menüsünü gösterir ve kullanıcı seçimlerini yönetir."""
+    stats = load_stats() # İstatistikleri başlangıçta yükle
+
+    # Oyun başlamadan önce açılış ekranını göster
+    display_splash_screen()
+
+    while True:
+        # Menüyü bir çerçeve içinde çizelim
+        def menu_options_content():
+            print(Colors.GREEN + "1. Oyuna Başla".ljust(58) + Colors.RESET)
+            print(Colors.CYAN + "2. İstatistikleri Gör".ljust(58) + Colors.RESET)
+            print(Colors.BLUE + "3. Nasıl Oynanır?".ljust(58) + Colors.RESET)
+            print(Colors.RED + "4. Çıkış".ljust(58) + Colors.RESET)
+            print("\n" + Colors.BRIGHT_BLACK + "Kontrol Paneli V1.2".rjust(58) + Colors.RESET) # Alt bilgi
+
+        # Ana menüyü çizmeden önce hoş geldin içeriğini gösterelim
+        draw_frame("ANA MENÜ", lambda: oyun_karsilama_content(), Colors.CYAN)
+        # Ardından menü seçeneklerini ve input'u alalım
+        draw_frame("ANA MENÜ", lambda: menu_options_content(), Colors.CYAN)
+
+
+        secim = input(Colors.YELLOW + "Seçimin: " + Colors.RESET).strip()
+
+        if secim == '1':
+            play_game(stats)
+        elif secim == '2':
+            draw_frame("OYUN İSTATİSTİKLERİ", lambda: show_stats_content(stats), Colors.CYAN)
+        elif secim == '3':
+            draw_frame("NASIL Oynanır?", how_to_play_content, Colors.BLUE)
+        elif secim == '4':
+            clear_screen()
+            print_slowly(Colors.WHITE + "\nGüle güle! Tekrar bekleriz. 🚀" + Colors.RESET, delay=0.05)
+            break
+        else:
+            clear_screen()
+            print(Colors.RED + "Geçersiz seçim. Lütfen 1, 2, 3 veya 4 girin." + Colors.RESET)
+            time.sleep(1)
+            clear_screen()
+
+# Oyunu başlat
+if __name__ == "__main__":
+    clear_screen() # Program başlangıcında ekranı temizle
+    sys.stdout.write(Colors.BG_BLACK) # Terminal arka planını siyaha ayarla (Eğer destekleniyorsa)
+    sys.stdout.flush()
+    main_menu()
+    sys.stdout.write(Colors.RESET) # Çıkışta renkleri sıfırla
+    sys.stdout.flush()
+    import random
+import time
+import sys
+import os
+
+# ANSI renk kodları
+class Colors:
+    RESET = "\033[0m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    MAGENTA = "\033[95m"
+    CYAN = "\033[96m"
+    WHITE = "\033[97m"
+    BG_BLACK = "\033[40m"
+    BG_RED = "\033[41m"
+    BG_GREEN = "\033[42m"
+    BG_YELLOW = "\033[43m"
+    BRIGHT_BLACK = "\033[90m"
+    BRIGHT_WHITE = "\033[97m"
+
+# --- Yardımcı Fonksiyonlar ---
+def clear_screen():
+    """Terminal ekranını temizler."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def print_slowly(text, delay=0.03):
+    """Metni yavaşça, harf harf yazdırır."""
+    for char in text:
+        sys.stdout.write(char)
+        sys.stdout.flush()
+        time.sleep(delay)
+    print()
+
+def display_can_bar(current_can, max_can):
+    """Kalan canı görsel bir bar şeklinde gösterir."""
+    bar = ""
+    for i in range(max_can):
+        if i < current_can:
+            bar += Colors.RED + "♥ " + Colors.RESET # Can var
+        else:
+            bar += Colors.WHITE + "♡ " + Colors.RESET # Can yok
+    print(f"Can: [{bar}] ({current_can}/{max_can})")
+
+def draw_frame(title, content_func, color=Colors.CYAN):
+    """Belirtilen içeriği bir çerçeve içine alarak gösterir."""
+    clear_screen()
+    width = 60
+    print(color + "╔" + "═" * (width - 2) + "╗" + Colors.RESET)
+    print(color + "║" + title.center(width - 2) + "║" + Colors.RESET)
+    print(color + "╠" + "═" * (width - 2) + "╣" + Colors.RESET)
+
+    # İçeriği fonksiyon çağırarak yazdır
+    content_func()
+
+    print(color + "╚" + "═" * (width - 2) + "╝" + Colors.RESET)
+    print(Colors.RESET) # Renk sıfırlama
+
+# --- Oyun İstatistikleri Fonksiyonları ---
+STATS_FILE = "bomba_oyunu_istatistikleri.txt"
+
+def load_stats():
+    """Kayıtlı istatistikleri dosyadan yükler."""
+    stats = {"wins": 0, "losses": 0}
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r") as f:
+                for line in f:
+                    if "Kazanılan:" in line:
+                        stats["wins"] = int(line.split(":")[1].strip())
+                    elif "Kaybedilen:" in line:
+                        stats["losses"] = int(line.split(":")[1].strip())
+        except Exception as e:
+            print(Colors.RED + f"İstatistikler yüklenirken bir hata oluştu: {e}" + Colors.RESET)
+    return stats
+
+def save_stats(stats):
+    """İstatistikleri dosyaya kaydeder."""
+    try:
+        with open(STATS_FILE, "w") as f:
+            f.write(f"Kazanılan: {stats['wins']}\n")
+            f.write(f"Kaybedilen: {stats['losses']}\n")
+    except Exception as e: # Bu kısım önceki hatada düzeltilmişti.
+        print(Colors.RED + f"İstatistikler kaydedilirken bir hata oluştu: {e}" + Colors.RESET)
+
+def show_stats_content(stats):
+    """İstatistik içeriğini çerçeve içine yazdırır."""
+    print(Colors.GREEN + f"Toplam Kazanılan Oyun: {stats['wins']}".ljust(58) + Colors.RESET)
+    print(Colors.RED + f"Toplam Kaybedilen Oyun: {stats['losses']}".ljust(58) + Colors.RESET)
+    total_games = stats['wins'] + stats['losses']
+    if total_games > 0:
+        kazanma_orani = (stats['wins'] / total_games) * 100
+        print(Colors.YELLOW + f"Kazanma Oranı: %{kazanma_orani:.2f}".ljust(58) + Colors.RESET)
+    else:
+        print(Colors.MAGENTA + "Henüz hiç oyun oynanmadı.".ljust(58) + Colors.RESET)
+    print(" " * 58) # Boşluk
+    input(Colors.BLUE + "Devam etmek için ENTER tuşuna bas...".ljust(58) + Colors.RESET)
+
+# --- Oyun Senaryoları ---
+def display_splash_screen():
+    """Oyunun açılış ekranını gösterir."""
+    clear_screen()
+    print(Colors.BG_BLACK + Colors.YELLOW + r"""
+                                         _  _       _
+                                        | || |     | |
+                                        | || |_   _| |__  _ __ ___   __ _ _ __
+                                        |__   _| / _` | '_ \| '_ ` _ \ / _` | '_ \
+                                           | |  | (_| | |_) | | | | | | (_| | | | |
+                                           |_|   \__,_|_.__|_| |_| |_|\__,_|_| |_|
+
+          ____                      _
+         |  _ \                    | |
+         | |_) | ___  _ __ ___   __| | ___ _ __
+         |  _ < / _ \| '_ ` _ \ / _` |/ _ \ '__|
+         | |_) | (_) | | | | | | (_| |  __/ |
+         |____/ \___|_| |_| |_| |_|\__,_|\___|_|
+            """ + Colors.RESET)
+
+    print_slowly(Colors.CYAN + "         Yükleniyor..." + Colors.RESET, delay=0.08)
+    time.sleep(0.5)
+    print_slowly(Colors.MAGENTA + "         Hazırlanıyor..." + Colors.RESET, delay=0.08)
+    time.sleep(0.5)
+    print_slowly(Colors.GREEN + "         Başlatılıyor..." + Colors.RESET, delay=0.08)
+    time.sleep(1) # Kısa bir duraklama
+    clear_screen()
+
+def oyun_karsilama_content():
+    """Ana menüdeki karşılama içeriğini yazdırır."""
+    print_slowly("        GELİŞTİRİLMİŞ BOMBA KAZANMA SİSTEMİNE HOŞ GELDİN! ", delay=0.04)
+    print_slowly("--------------------------------------------------")
+    print(" " * 58) # Boşluk
+    print(Colors.BRIGHT_BLACK + "        Hazır Ol, Zaman Daralıyor!" + Colors.RESET)
+
+
+def how_to_play_content():
+    """Nasıl oynanır içeriğini çerçeve içine yazdırır."""
+    print_slowly("Amacın belirlenen sayı aralığında bir sayı tahmin etmek.".ljust(58), delay=0.01)
+    print_slowly("Her yanlış tahminde bir can kaybedersin.".ljust(58), delay=0.01)
+    print_slowly("Doğru sayıyı bulursan KAZANIRSIN!".ljust(58), delay=0.01)
+    print_slowly("Canın biterse, BOMBA PATLAR ve KAYBEDERSİN!".ljust(58), delay=0.01)
+    print_slowly("Oyunda 3 zorluk seviyesi bulunur.".ljust(58), delay=0.01)
+    print_slowly("Her seviyenin farklı bir sayı aralığı ve can hakkı vardır.".ljust(58), delay=0.01)
+    print_slowly("Tahminlerine göre ipuçları alacaksın.".ljust(58), delay=0.01)
+    print(" " * 58) # Boşluk
+    input(Colors.BLUE + "Devam etmek için ENTER tuşuna bas...".ljust(58) + Colors.RESET)
+
+def zorluk_secimi():
+    """Kullanıcıdan zorluk seviyesi seçmesini ister ve aralığı döndürür."""
+    while True:
+        clear_screen() # Seçim ekranını temizle
+        print(Colors.BLUE + "\n--- Zorluk Seviyesi Seç ---" + Colors.RESET)
+        print("1. Kolay " + Colors.GREEN + "(1-20 arası, 5 can)" + Colors.RESET)
+        print("2. Orta " + Colors.YELLOW + "(1-50 arası, 4 can)" + Colors.RESET)
+        print("3. Zor " + Colors.RED + "(1-100 arası, 3 can)" + Colors.RESET)
+        secim = input(Colors.CYAN + "Seçimin (1/2/3): " + Colors.RESET)
+
+        if secim == '1':
+            return 1, 20, 5 # min, max, can
+        elif secim == '2':
+            return 1, 50, 4
+        elif secim == '3':
+            return 1, 100, 3
+        else:
+            print(Colors.RED + "Geçersiz seçim. Lütfen 1, 2 veya 3 girin." + Colors.RESET)
+            time.sleep(0.5)
+
+def bomba_patlama_animasyonu():
+    """Bomba patlama anını metinle canlandırır."""
+    sys.stdout.write(Colors.BG_RED + Colors.WHITE)
+    sys.stdout.flush()
+    print("\n     ███████████     ")
+    print("    █████████████    ")
+    print("   ███████████████   ")
+    print("   ███" + Colors.RED + "BOM" + Colors.WHITE + "BA" + Colors.RED + "PAT" + Colors.WHITE + "LADI" + Colors.RED + "DII" + Colors.WHITE + "███   ")
+    print("   ███████████████   ")
+    print("    █████████████    ")
+    print("     ███████████     ")
+    print("\n       💥 B O O M ! 💥       ")
+    time.sleep(1.5)
+    sys.stdout.write(Colors.BG_BLACK + Colors.RESET) # Arka planı siyaha döndür
+    sys.stdout.flush()
+
+def kazanma_animasyonu():
+    """Kazanma anını metinle canlandırır."""
+    sys.stdout.write(Colors.BG_GREEN + Colors.WHITE)
+    sys.stdout.flush()
+    print("\n     🎉 TEBRİKLER! 🎉     ")
+    print("    ✨ KAZANDINIZ! ✨    ")
+    print("     🏆 MÜKEMMEL! 🏆     ")
+    time.sleep(1.5)
+    sys.stdout.write(Colors.BG_BLACK + Colors.RESET) # Arka planı siyaha döndür
+    sys.stdout.flush()
+
+def get_hint(tahmin, gizli_sayi, max_range_param): # Parametre adı değiştirildi
+    """Tahmine göre daha detaylı ipucu verir."""
+    fark = abs(tahmin - gizli_sayi)
+
+    # max_range yerine max_range_param kullanıyoruz
+    if max_range_param <= 20: # Kolay seviye
+        if fark <= 2:
+            return Colors.RED + "İpucu: Çok Sıcak! Neredeyse buldun." + Colors.RESET
+        elif fark <= 5:
+            return Colors.YELLOW + "İpucu: Sıcak! Yaklaşıyorsun." + Colors.RESET
+        else:
+            return Colors.BLUE + "İpucu: Soğuk! Daha fazla dene." + Colors.RESET
+    elif max_range_param <= 50: # Orta seviye
+        if fark <= 5:
+            return Colors.RED + "İpucu: Çok Sıcak! Neredeyse buldun." + Colors.RESET
+        elif fark <= 10:
+            return Colors.YELLOW + "İpucu: Sıcak! Yaklaşıyorsun." + Colors.RESET
+        else:
+            return Colors.BLUE + "İpucu: Soğuk! Daha fazla dene." + Colors.RESET
+    else: # Zor seviye
+        if fark <= 10:
+            return Colors.RED + "İpucu: Çok Sıcak! Neredeyse buldun." + Colors.RESET
+        elif fark <= 20:
+            return Colors.YELLOW + "İpucu: Sıcak! Yaklaşıyorsun." + Colors.RESET
+        else:
+            return Colors.BLUE + "İpucu: Soğuk! Daha fazla dene." + Colors.RESET
+
+# --- Ana Oyun Döngüsü ---
+def play_game(stats):
+    """Tek bir oyunun akışını yönetir."""
+    clear_screen()
+    min_sayi, max_sayi, baslangic_can = zorluk_secimi()
+    gizli_sayi = random.randint(min_sayi, max_sayi)
+    can = baslangic_can
+    tahmin_hakki = 0
+
+    print(Colors.BLUE + f"\n{min_sayi} ile {max_sayi} arasında bir sayı tahmin et." + Colors.RESET)
+
+    while can > 0:
+        display_can_bar(can, baslangic_can) # Can barını göster
+        try:
+            tahmin_hakki += 1
+            tahmin = int(input(Colors.YELLOW + f"Tahminini gir: " + Colors.RESET))
+
+            if not (min_sayi <= tahmin <= max_sayi):
+                print(Colors.RED + f"Lütfen {min_sayi} ile {max_sayi} arasında bir sayı gir." + Colors.RESET)
+                time.sleep(0.5)
+                continue
+
+            if tahmin == gizli_sayi:
+                kazanma_animasyonu() # Kazanma animasyonu
+                print(Colors.GREEN + f"     {tahmin_hakki} tahminde doğru bildin! Gizli sayı {gizli_sayi} idi." + Colors.RESET)
+                stats["wins"] += 1
+                break
+            else:
+                can -= 1
+                print_slowly(Colors.MAGENTA + "Yanlış tahmin! Bomba tık tık ediyor..." + Colors.RESET, delay=0.05)
+                time.sleep(0.5) # Kısa bir duraklama
+                if can > 0:
+                    print(get_hint(tahmin, gizli_sayi, max_sayi)) # <-- Buradaki max_sayi düzeltildi!
+                    if tahmin < gizli_sayi:
+                        print(Colors.BLUE + "Sayı daha büyük." + Colors.RESET)
+                    else:
+                        print(Colors.BLUE + "Sayı daha küçük." + Colors.RESET)
+                else:
+                    bomba_patlama_animasyonu() # Patlama animasyonu
+                    print(Colors.RED + f"     Kaybettin! Gizli sayı {gizli_sayi} idi." + Colors.RESET)
+                    stats["losses"] += 1
+        except ValueError:
+            print(Colors.RED + "Geçersiz giriş! Lütfen bir sayı gir." + Colors.RESET)
+            time.sleep(0.5)
+        except Exception as e:
+            print(Colors.RED + f"Beklenmeyen bir hata oluştu: {e}" + Colors.RESET)
+            time.sleep(0.5)
+
+        # Bu input'un yeri değişti, artık her tahmin sonrası değil, can bittiğinde veya kazanıldığında gelecek.
+        # Böylece döngüde gereksiz duraklama olmaz.
+        if can <= 0 or tahmin == gizli_sayi: # Oyun bittiğinde
+            input(Colors.BLUE + "\nDevam etmek için ENTER tuşuna bas..." + Colors.RESET)
+            clear_screen()
+            save_stats(stats) # Oyun bitince istatistikleri kaydet
+
+
+# --- Ana Menü ---
+def main_menu():
+    """Oyunun ana menüsünü gösterir ve kullanıcı seçimlerini yönetir."""
+    stats = load_stats() # İstatistikleri başlangıçta yükle
+
+    # Oyun başlamadan önce açılış ekranını göster
+    display_splash_screen()
+
+    while True:
+        # Menüyü bir çerçeve içinde çizelim
+        def menu_options_content():
+            print(Colors.GREEN + "1. Oyuna Başla".ljust(58) + Colors.RESET)
+            print(Colors.CYAN + "2. İstatistikleri Gör".ljust(58) + Colors.RESET)
+            print(Colors.BLUE + "3. Nasıl Oynanır?".ljust(58) + Colors.RESET)
+            print(Colors.RED + "4. Çıkış".ljust(58) + Colors.RESET)
+            print("\n" + Colors.BRIGHT_BLACK + "Kontrol Paneli V1.2".rjust(58) + Colors.RESET) # Alt bilgi
+
+        # Ana menüyü çizmeden önce hoş geldin içeriğini gösterelim
+        draw_frame("ANA MENÜ", lambda: oyun_karsilama_content(), Colors.CYAN)
+        # Ardından menü seçeneklerini ve input'u alalım
+        draw_frame("ANA MENÜ", lambda: menu_options_content(), Colors.CYAN)
+
+
+        secim = input(Colors.YELLOW + "Seçimin: " + Colors.RESET).strip()
+
+        if secim == '1':
+            play_game(stats)
+        elif secim == '2':
+            draw_frame("OYUN İSTATİSTİKLERİ", lambda: show_stats_content(stats), Colors.CYAN)
+        elif secim == '3':
+            draw_frame("NASIL Oynanır?", how_to_play_content, Colors.BLUE)
+        elif secim == '4':
+            clear_screen()
+            print_slowly(Colors.WHITE + "\nGüle güle! Tekrar bekleriz. 🚀" + Colors.RESET, delay=0.05)
+            break
+        else:
+            clear_screen()
+            print(Colors.RED + "Geçersiz seçim. Lütfen 1, 2, 3 veya 4 girin." + Colors.RESET)
+            time.sleep(1)
+            clear_screen()
+
+# Oyunu başlat
+if __name__ == "__main__":
+    clear_screen() # Program başlangıcında ekranı temizle
+    sys.stdout.write(Colors.BG_BLACK) # Terminal arka planını siyaha ayarla (Eğer destekleniyorsa)
+    sys.sdout.flush()
+    main_menu()
+    sys.stdout.write(Colors.RESET) # Çıkışta renkleri sıfırla
+    sys.stdout.flush()
